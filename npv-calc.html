@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive NPV Analysis Calculator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        .year-input-group {
+            display: flex;
+            align-items: center;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/babel-standalone@6.26.0/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        function NPVCalculator() {
+            const [initialInvestment, setInitialInvestment] = useState(1000000);
+            const [cashFlows, setCashFlows] = useState([200000, 300000, 400000, 500000, 600000]);
+            const [discountRate, setDiscountRate] = useState(10);
+            const [npv, setNPV] = useState(0);
+            const [showDebt, setShowDebt] = useState(false);
+            const [debtAmount, setDebtAmount] = useState(500000);
+            const [interestRate, setInterestRate] = useState(5);
+            const chartRef = useRef(null);
+
+            useEffect(() => {
+                calculateNPV();
+            }, [initialInvestment, cashFlows, discountRate, showDebt, debtAmount, interestRate]);
+
+            useEffect(() => {
+                if (chartRef.current) {
+                    chartRef.current.destroy();
+                }
+                createChart();
+            }, [npv, cashFlows]);
+
+            const calculateNPV = () => {
+                let npv = -initialInvestment;
+                let remainingDebt = showDebt ? debtAmount : 0;
+                for (let i = 0; i < cashFlows.length; i++) {
+                    let yearlyInterest = 0;
+                    if (showDebt && remainingDebt > 0) {
+                        yearlyInterest = remainingDebt * (interestRate / 100);
+                        remainingDebt = Math.max(0, remainingDebt - (cashFlows[i] - yearlyInterest));
+                    }
+                    npv += (cashFlows[i] - yearlyInterest) / Math.pow(1 + discountRate / 100, i + 1);
+                }
+                setNPV(npv);
+            };
+
+            const createChart = () => {
+                const ctx = document.getElementById('npvChart').getContext('2d');
+                chartRef.current = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Initial Investment', ...cashFlows.map((_, i) => `Year ${i + 1}`), 'NPV'],
+                        datasets: [{
+                            label: 'Cash Flows and NPV',
+                            data: [-initialInvestment, ...cashFlows, npv],
+                            backgroundColor: [
+                                'rgba(255, 99, 132, 0.5)',
+                                ...cashFlows.map(() => 'rgba(54, 162, 235, 0.5)'),
+                                npv >= 0 ? 'rgba(75, 192, 192, 0.5)' : 'rgba(255, 99, 132, 0.5)'
+                            ],
+                            borderColor: [
+                                'rgba(255, 99, 132, 1)',
+                                ...cashFlows.map(() => 'rgba(54, 162, 235, 1)'),
+                                npv >= 0 ? 'rgba(75, 192, 192, 1)' : 'rgba(255, 99, 132, 1)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            };
+
+            const handleCashFlowChange = (index, value) => {
+                const newCashFlows = [...cashFlows];
+                newCashFlows[index] = parseFloat(value);
+                setCashFlows(newCashFlows);
+            };
+
+            const getSentiment = () => {
+                const percentageGain = (npv / initialInvestment) * 100;
+                if (percentageGain > 25) return { text: 'Extremely Positive', color: 'success' };
+                if (percentageGain > 15) return { text: 'Strongly Positive', color: 'success' };
+                if (percentageGain > 0) return { text: 'Positive', color: 'info' };
+                if (percentageGain > -15) return { text: 'Negative', color: 'warning' };
+                if (percentageGain > -25) return { text: 'Strongly Negative', color: 'warning' };
+                return { text: 'Extremely Negative', color: 'danger' };
+            };
+
+            const addYear = () => {
+                if (cashFlows.length < 10) {
+                    setCashFlows([...cashFlows, 100000]);
+                }
+            };
+
+            const removeYear = (index) => {
+                if (cashFlows.length > 2) {
+                    const newCashFlows = cashFlows.filter((_, i) => i !== index);
+                    setCashFlows(newCashFlows);
+                }
+            };
+
+            const sentiment = getSentiment();
+
+            return (
+                <div className="container mt-5">
+                    <h1 className="text-center mb-4">Enhanced Interactive NPV Analysis Calculator</h1>
+                    <div className="row">
+                        <div className="col-md-6">
+                            <div className="mb-3">
+                                <label htmlFor="initialInvestment" className="form-label">
+                                    Initial Investment
+                                    <i className="bi bi-info-circle ms-2" data-bs-toggle="tooltip" data-bs-placement="top" title="The upfront cost required to start the project"></i>
+                                </label>
+                                <div className="input-group">
+                                    <input
+                                        type="number"
+                                        className="form-control"
+                                        value={initialInvestment}
+                                        onChange={(e) => setInitialInvestment(parseFloat(e.target.value))}
+                                    />
+                                    <input
+                                        type="range"
+                                        className="form-range"
+                                        id="initialInvestment"
+                                        min="1"
+                                        max="5000000"
+                                        step="100000"
+                                        value={initialInvestment}
+                                        onChange={(e) => setInitialInvestment(parseFloat(e.target.value))}
+                                    />
+                                </div>
+                            </div>
+                            <div className="mb-3">
+                                <label htmlFor="discountRate" className="form-label">
+                                    Discount Rate (%)
+                                    <i className="bi bi-info-circle ms-2" data-bs-toggle="tooltip" data-bs-placement="top" title="The rate used to discount future cash flows to their present value"></i>
+                                </label>
+                                <div className="input-group">
+                                    <input
+                                        type="number"
+                                        className="form-control"
+                                        value={discountRate}
+                                        onChange={(e) => setDiscountRate(parseFloat(e.target.value))}
+                                    />
+                                    <input
+                                        type="range"
+                                        className="form-range"
+                                        id="discountRate"
+                                        min="0"
+                                        max="30"
+                                        step="0.5"
+                                        value={discountRate}
+                                        onChange={(e) => setDiscountRate(parseFloat(e.target.value))}
+                                    />
+                                </div>
+                            </div>
+                            <div className="mb-3">
+                                <label className="form-label">
+                                    Cash Flows
+                                    <i className="bi bi-info-circle ms-2" data-bs-toggle="tooltip" data-bs-placement="top" title="The expected annual cash inflows from the project"></i>
+                                </label>
+                                {cashFlows.map((cf, index) => (
+                                    <div key={index} className="mb-2">
+                                        <div className="input-group year-input-group">
+                                            <span className="input-group-text">Year {index + 1}</span>
+                                            <input
+                                                type="number"
+                                                className="form-control"
+                                                value={cf}
+                                                onChange={(e) => handleCashFlowChange(index, e.target.value)}
+                                            />
+                                            {index >= 2 && (
+                                                <button className="btn btn-outline-danger" onClick={() => removeYear(index)}>
+                                                    X
+                                                </button>
+                                            )}
+                                        </div>
+                                        <input
+                                            type="range"
+                                            className="form-range"
+                                            min="0"
+                                            max="1000000"
+                                            step="10000"
+                                            value={cf}
+                                            onChange={(e) => handleCashFlowChange(index, e.target.value)}
+                                        />
+                                    </div>
+                                ))}
+                                {cashFlows.length < 10 && (
+                                    <button className="btn btn-outline-primary mt-2" onClick={addYear}>
+                                        Add Year
+                                    </button>
+                                )}
+                            </div>
+                            <div className="mb-3">
+                                <div className="form-check">
+                                    <input
+                                        className="form-check-input"
+                                        type="checkbox"
+                                        id="showDebt"
+                                        checked={showDebt}
+                                        onChange={(e) => setShowDebt(e.target.checked)}
+                                    />
+                                    <label className="form-check-label" htmlFor="showDebt">
+                                        Include Debt Factors
+                                    </label>
+                                </div>
+                            </div>
+                            {showDebt && (
+                                <div>
+                                    <div className="mb-3">
+                                        <label htmlFor="debtAmount" className="form-label">Debt Amount</label>
+                                        <div className="input-group">
+                                            <input
+                                                type="number"
+                                                className="form-control"
+                                                value={debtAmount}
+                                                onChange={(e) => setDebtAmount(parseFloat(e.target.value))}
+                                            />
+                                            <input
+                                                type="range"
+                                                className="form-range"
+                                                id="debtAmount"
+                                                min="0"
+                                                max="5000000"
+                                                step="100000"
+                                                value={debtAmount}
+                                                onChange={(e) => setDebtAmount(parseFloat(e.target.value))}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="mb-3">
+                                        <label htmlFor="interestRate" className="form-label">Interest Rate (%)</label>
+                                        <div className="input-group">
+                                            <input
+                                                type="number"
+                                                className="form-control"
+                                                value={interestRate}
+                                                onChange={(e) => setInterestRate(parseFloat(e.target.value))}
+                                            />
+                                            <input
+                                                type="range"
+                                                className="form-range"
+                                                id="interestRate"
+                                                min="0"
+                                                max="30"
+                                                step="0.5"
+                                                value={interestRate}
+                                                onChange={(e) => setInterestRate(parseFloat(e.target.value))}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <div className="col-md-6">
+                            <canvas id="npvChart"></canvas>
+                            <div className="mt-4 text-center">
+                                <h3>Net Present Value (NPV)</h3>
+                                <h2 className={`text-${npv >= 0 ? 'success' : 'danger'}`}>
+                                    ${npv.toLocaleString(undefined, { maximumFractionDigits: 2 })} <br />
+                                </h2>
+                                <div className="mt-3">
+                                    {((npv / initialInvestment).toLocaleString(undefined, { maximumFractionDigits: 4})) * 100}%
+                                </div>
+                                <div className={`alert alert-${sentiment.color} mt-3`} role="alert">
+                                    Project Sentiment: {sentiment.text}
+                                </div>
+                                <div className="mt-3">
+                                    <strong>CFO's Decision:</strong> {npv >= 0 ? 'Accept the project' : 'Reject the project'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<NPVCalculator />, document.getElementById('root'));
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl)
+            })
+        });
+    </script>
+</body>
+</html>
