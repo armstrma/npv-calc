@@ -11,6 +11,107 @@
             display: flex;
             align-items: center;
         }
+        
+        #dark-mode-button {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+        }
+        
+        body.dark-mode {
+            background-color: #121212e5;
+            color: #ffffff;
+        }
+
+        body.dark-mode .navbar {
+            background-color: #333333;
+        }
+
+        body.dark-mode .card {
+            background-color: #1c1c1c;
+            border-color: #444444;
+        }
+
+        body.dark-mode .btn {
+            background-color: #444444;
+            color: #ffffff;
+        }
+
+        body.dark-mode .alert-primary {
+            background-color: #2d2f7a;
+            color: #ffffff;
+        }
+
+        body.dark-mode .alert-secondary {
+            background-color: #3c3c3c;
+            color: #ffffff;
+        }
+
+        body.dark-mode .alert-success {
+            background-color: #1d6f42;
+            color: #ffffff;
+        }
+
+        body.dark-mode .alert-danger {
+            background-color: #7a1f1f;
+            color: #ffffff;
+        }
+
+        body.dark-mode .alert-warning {
+            background-color: #7a6f1f;
+            color: #ffffff;
+        }
+
+        body.dark-mode .alert-info {
+            background-color: #1f6f7a;
+            color: #ffffff;
+        }
+
+        body.dark-mode .alert-light {
+            background-color: #333;
+            color: #ffffff;
+        }
+
+        body.dark-mode .alert-dark {
+            background-color: #000;
+            color: #ffffff;
+        }
+
+        /* Custom dark mode styles for form controls */
+        body.dark-mode .form-control {
+            background-color: #333;  /* Dark background for text boxes */
+            color: #ffffff;  /* Light text color */
+            border-color: #555;  /* Darker border */
+        }
+
+        body.dark-mode .form-control::placeholder {
+            color: #888;  /* Lighter color for placeholder text */
+        }
+
+        body.dark-mode .form-control:focus {
+            background-color: #444;  /* Slightly lighter background on focus */
+            color: #ffffff;
+            border-color: #777;  /* Slightly lighter border on focus */
+            box-shadow: 0 0 0 0.2rem rgba(255, 255, 255, 0.25);  /* Optional: subtle focus shadow */
+        }
+
+        /* Adjust buttons for dark mode */
+        body.dark-mode .btn-outline-primary {
+            color: #ffffff;
+            border-color: #ffffff;
+        }
+
+        body.dark-mode .btn-outline-primary:hover {
+            background-color: #ffffff;
+            color: #333;
+        }
+
+        body.dark-mode .range {
+            background-color: #333;  /* Dark background for text boxes */
+            color: #ffffff;  /* Light text color */
+            border-color: #555;  /* Darker border */
+        }
+
     </style>
     <script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
@@ -42,6 +143,15 @@
                 }
                 createChart();
             }, [npv, cashFlows]);
+
+            useEffect(() => {
+                const darkModeButton = document.getElementById('dark-mode-button');
+                if (darkModeButton) {
+                    darkModeButton.addEventListener('click', function() {
+                        document.body.classList.toggle('dark-mode');
+                    });
+                }
+            }, []);
 
             const calculateNPV = () => {
                 let npv = -initialInvestment;
@@ -122,6 +232,7 @@
 
             return (
                 <div className="container mt-5">
+                    <button id="dark-mode-button" class="btn btn-outline-primary mt-2">Dark Mode</button>
                     <h1 className="text-center mb-4">Enhanced Interactive NPV Analysis Calculator</h1>
                     <div className="row">
                         <div className="col-md-6">
