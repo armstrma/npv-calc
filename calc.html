@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>NPV Calculator</title>
+    <!-- Include Bootstrap CSS and Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <!-- Include React and ReactDOM from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@17/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@17/umd/react-dom.production.min.js"></script>
+    <!-- Include Babel for JSX transformation -->
+    <script src="https://cdn.jsdelivr.net/npm/babel-standalone@6.26.0/babel.min.js"></script>
+    <!-- Include Chart.js version 3.9.1 for graphing -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <!-- Include Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        body.dark-mode {
+            background-color: #1f1f1f;
+            color: #ffffff;
+        }
+        .slider::-webkit-slider-thumb {
+            border: none;
+        }
+        .slider::-moz-range-thumb {
+            border: none;
+        }
+        .slider::-ms-thumb {
+            border: none;
+        }
+        .npv-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        /* Adjust the slider thumb and track colors */
+        .form-range::-webkit-slider-thumb {
+            background: var(--thumb-color, #000);
+        }
+        .form-range::-moz-range-thumb {
+            background: var(--thumb-color, #000);
+        }
+        .form-range::-ms-thumb {
+            background: var(--thumb-color, #000);
+        }
+        .form-range::-webkit-slider-runnable-track {
+            background: var(--track-color, #ddd);
+        }
+        .form-range::-moz-range-track {
+            background: var(--track-color, #ddd);
+        }
+        .form-range::-ms-track {
+            background: var(--track-color, #ddd);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        function NPVCalculator() {
+            const [initialInvestment, setInitialInvestment] = useState(1000000);
+            const [cashFlows, setCashFlows] = useState([200000, 300000, 400000, 500000, 600000]);
+            const [discountRate, setDiscountRate] = useState(10);
+            const [npv, setNPV] = useState(0);
+            const [cfSensitivities, setCFSensitivities] = useState([]);
+            const [initialInvestmentSensitivity, setInitialInvestmentSensitivity] = useState(0);
+            const [isDarkMode, setIsDarkMode] = useState(false);
+            const chartRef = useRef(null);
+            const sliderStyleRef = useRef(null);
+            const barChartRef = useRef(null);
+
+            const minCashFlows = 2;
+            const maxCashFlows = 10;
+
+            useEffect(() => {
+                // Check local storage for dark mode preference
+                const darkModePreference = localStorage.getItem('isDarkMode') === 'true';
+                setIsDarkMode(darkModePreference);
+                // Apply or remove the dark mode class on body
+                document.body.classList.toggle('dark-mode', darkModePreference);
+            }, []);
+
+            useEffect(() => {
+                calculateNPV();
+            }, [initialInvestment, cashFlows, discountRate]);
+
+            useEffect(() => {
+                updateChart();
+                updateDRSliderGradient();
+                createBarChart();
+            }, [initialInvestment, cashFlows, npv, discountRate]);
+
+            useEffect(() => {
+                // Update body class when isDarkMode changes
+                document.body.classList.toggle('dark-mode', isDarkMode);
+                // Store preference in local storage
+                localStorage.setItem('isDarkMode', isDarkMode);
+            }, [isDarkMode]);
+
+            // Toggle Dark Mode
+            function toggleDarkMode() {
+                setIsDarkMode(!isDarkMode);
+            }
+
+            function calculateNPV() {
+                let npvValue = 0;
+                let cfSensitivityValues = [];
+                const rate = discountRate / 100;
+
+                // NPV includes initial investment (as negative value)
+                npvValue += -initialInvestment;
+
+                // Sensitivity of NPV to initial investment is 1
+                setInitialInvestmentSensitivity(1);
+
+                for (let t = 0; t < cashFlows.length; t++) {
+                    const cf = cashFlows[t];
+                    const denominator = Math.pow(1 + rate, t + 1);
+                    npvValue += cf / denominator;
+
+                    // Sensitivity of NPV to cash flow CF_t
+                    const cfSensitivity = Math.abs(1 / denominator);
+                    cfSensitivityValues.push(cfSensitivity);
+                }
+
+                setNPV(parseFloat(npvValue.toFixed(2)));
+                setCFSensitivities(cfSensitivityValues);
+            }
+
+            function handleInitialInvestmentChange(value) {
+                setInitialInvestment(parseFloat(value));
+            }
+
+            function handleCashFlowChange(index, value) {
+                const newCashFlows = [...cashFlows];
+                newCashFlows[index] = parseFloat(value);
+                setCashFlows(newCashFlows);
+            }
+
+            function handleDiscountRateChange(value) {
+                setDiscountRate(parseFloat(value));
+            }
+
+            // Updated getSentiment function
+            const getSentiment = (percentageGain) => {
+                if (percentageGain > 25) return { text: 'Extremely Positive', color: 'success', percentageGain };
+                if (percentageGain > 15) return { text: 'Strongly Positive', color: 'success', percentageGain };
+                if (percentageGain > 0) return { text: 'Positive', color: 'info', percentageGain };
+                if (percentageGain > -15) return { text: 'Negative', color: 'warning', percentageGain };
+                if (percentageGain > -25) return { text: 'Strongly Negative', color: 'warning', percentageGain };
+                return { text: 'Extremely Negative', color: 'danger', percentageGain };
+            };
+
+            // Define project sentiment based on NPV
+            const currentPercentageGain = (npv / initialInvestment) * 100;
+            const sentiment = getSentiment(currentPercentageGain);
+
+            function getColorFromSentiment(percentageGain) {
+                // Map percentageGain to color based on sentiment thresholds
+                if (percentageGain > 25) return '#198754'; // Bootstrap 'success' green
+                if (percentageGain > 15) return '#198754'; // Bootstrap 'success' green
+                if (percentageGain > 0) return '#0dcaf0'; // Bootstrap 'info' blue
+                if (percentageGain > -15) return '#ffc107'; // Bootstrap 'warning' yellow
+                if (percentageGain > -25) return '#ffc107'; // Bootstrap 'warning' yellow
+                return '#dc3545'; // Bootstrap 'danger' red
+            }
+
+            function getCFSensitivityColor(sensitivity) {
+                // Normalize sensitivities
+                const maxSensitivity = Math.max(...cfSensitivities);
+                const minSensitivity = Math.min(...cfSensitivities);
+
+                let normalized = maxSensitivity !== minSensitivity ? 
+                    (sensitivity - minSensitivity) / (maxSensitivity - minSensitivity) : 0;
+
+                // Map normalized sensitivity to shades of blue
+                const lightness = 80 - normalized * 50; // from 80% to 30%
+                return `hsl(240, 100%, ${lightness}%)`; // Hue 240 is blue
+            }
+
+            function getInitialInvestmentColor(sensitivity) {
+                // Since sensitivity is 1, use a fixed color or map it appropriately
+                const lightness = 80 - sensitivity * 50; // from 80% to 30%
+                return `hsl(240, 100%, ${lightness}%)`; // Hue 240 is blue
+            }
+
+            function updateChart() {
+                const ctx = document.getElementById('npvChart').getContext('2d');
+                const discountRates = Array.from({ length: 31 }, (_, i) => i); // 0% to 30% in steps of 1%
+                const npvValues = discountRates.map((rate) => calculateNPVForRate(rate));
+                const percentageGains = npvValues.map((npvValue) => (npvValue / initialInvestment) * 100);
+
+                // Calculate consistent min and max for y-axis
+                const minNPV = Math.min(...npvValues, -5000000);
+                const maxNPV = Math.max(...npvValues, 5000000);
+
+                if (chartRef.current) {
+                    chartRef.current.data.labels = discountRates;
+                    chartRef.current.data.datasets[0].data = npvValues;
+                    chartRef.current.options.scales.y.min = minNPV;
+                    chartRef.current.options.scales.y.max = maxNPV;
+
+                    // Update the segment.borderColor function to use the latest percentageGains
+                    chartRef.current.data.datasets[0].segment = {
+                        borderColor: (ctx) => {
+                            const index = ctx.p1DataIndex;
+                            const percentageGain = percentageGains[index];
+                            return getColorFromSentiment(percentageGain);
+                        },
+                    };
+
+                    chartRef.current.update();
+                } else {
+                    chartRef.current = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: discountRates,
+                            datasets: [{
+                                label: 'NPV vs Discount Rate',
+                                data: npvValues,
+                                borderWidth: 2,
+                                fill: false,
+                                // Use segment styling for accurate color alignment
+                                segment: {
+                                    borderColor: (ctx) => {
+                                        const index = ctx.p1DataIndex;
+                                        const percentageGain = percentageGains[index];
+                                        return getColorFromSentiment(percentageGain);
+                                    },
+                                },
+                            }],
+                        },
+                        options: {
+                            animation: false,
+                            scales: {
+                                x: { 
+                                    title: { display: true, text: 'Discount Rate (%)' } 
+                                },
+                                y: { 
+                                    title: { display: true, text: 'NPV' },
+                                    min: minNPV,
+                                    max: maxNPV,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return '$' + value.toLocaleString();
+                                        }
+                                    }
+                                },
+                            },
+                            plugins: {
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const npvValue = context.parsed.y;
+                                            return `NPV: $${npvValue.toLocaleString()}`;
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                    });
+                }
+            }
+
+            function updateDRSliderGradient() {
+                const discountRates = Array.from({ length: 31 }, (_, i) => i); // 0% to 30% in steps of 1%
+                const npvValues = discountRates.map((rate) => calculateNPVForRate(rate));
+                const percentageGains = npvValues.map((npvValue) => (npvValue / initialInvestment) * 100);
+
+                const colorStops = discountRates.map((rate, i) => {
+                    const percentageGainAtRate = percentageGains[i];
+                    const color = getColorFromSentiment(percentageGainAtRate);
+                    const position = (rate / 30) * 100;
+                    return `${color} ${position}%`;
+                });
+
+                const gradientString = `linear-gradient(to right, ${colorStops.join(', ')})`;
+
+                // Create or update the style tag
+                if (!sliderStyleRef.current) {
+                    sliderStyleRef.current = document.createElement('style');
+                    document.head.appendChild(sliderStyleRef.current);
+                }
+                sliderStyleRef.current.innerHTML = `
+                    .dr-slider::-webkit-slider-runnable-track {
+                        background: ${gradientString};
+                    }
+                    .dr-slider::-moz-range-track {
+                        background: ${gradientString};
+                    }
+                    .dr-slider::-ms-track {
+                        background: ${gradientString};
+                    }
+                `;
+            }
+
+            function calculateNPVForRate(rate) {
+                let npvValue = 0;
+                const rateDecimal = rate / 100;
+
+                // Include initial investment (as negative value)
+                npvValue += -initialInvestment;
+
+                for (let t = 0; t < cashFlows.length; t++) {
+                    const cf = cashFlows[t];
+                    npvValue += cf / Math.pow(1 + rateDecimal, t + 1);
+                }
+                return parseFloat(npvValue.toFixed(2));
+            }
+
+            function createBarChart() {
+                const ctx = document.getElementById('barChart').getContext('2d');
+                const labels = ['Initial Investment', ...cashFlows.map((_, i) => `Year ${i + 1}`), 'NPV'];
+                const dataValues = [-initialInvestment, ...cashFlows, npv];
+
+                const backgroundColors = [
+                    'rgba(255, 99, 132, 0.5)', // Initial Investment (red)
+                    ...cashFlows.map(() => 'rgba(54, 162, 235, 0.5)'), // Cash Flows (blue)
+                    npv >= 0 ? 'rgba(25, 135, 84, 0.5)' : 'rgba(220, 53, 69, 0.5)' // NPV
+                ];
+
+                const borderColors = [
+                    'rgba(255, 99, 132, 1)',
+                    ...cashFlows.map(() => 'rgba(54, 162, 235, 1)'),
+                    npv >= 0 ? 'rgba(25, 135, 84, 1)' : 'rgba(220, 53, 69, 1)'
+                ];
+
+                if (barChartRef.current) {
+                    barChartRef.current.data.labels = labels;
+                    barChartRef.current.data.datasets[0].data = dataValues;
+                    barChartRef.current.data.datasets[0].backgroundColor = backgroundColors;
+                    barChartRef.current.data.datasets[0].borderColor = borderColors;
+                    barChartRef.current.update();
+                } else {
+                    barChartRef.current = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Cash Flows and NPV',
+                                data: dataValues,
+                                backgroundColor: backgroundColors,
+                                borderColor: borderColors,
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return '$' + value.toLocaleString();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+
+            // Add or remove cash flow years
+            function addCashFlowYear() {
+                if (cashFlows.length < maxCashFlows) {
+                    setCashFlows([...cashFlows, 0]);
+                }
+            }
+
+            function removeCashFlowYear(index) {
+                if (cashFlows.length > minCashFlows) {
+                    const newCashFlows = [...cashFlows];
+                    newCashFlows.splice(index, 1);
+                    setCashFlows(newCashFlows);
+                }
+            }
+
+            const npvColor = getColorFromSentiment(currentPercentageGain);
+            const initialInvestmentColor = getInitialInvestmentColor(initialInvestmentSensitivity);
+
+            return (
+                <div className="container mt-5">
+                    {/* Dark Mode Toggle */}
+                    <button
+                        className={`btn btn-${isDarkMode ? 'dark' : 'light'} position-fixed top-0 end-0 m-3`}
+                        onClick={toggleDarkMode}
+                        style={{ zIndex: 1000 }}
+                        aria-label="Toggle Dark Mode"
+                    >
+                        <i className="bi bi-moon-fill"></i>
+                    </button>
+
+                    <h1 className="text-center mb-4">NPV Calculator</h1>
+
+                    <div className="row">
+                        {/* Left Column for Inputs */}
+                        <div className="col-md-6">
+                            <div className="mb-4">
+                                <label className="form-label">Initial Investment: ${initialInvestment.toLocaleString()}</label>
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="5000000"
+                                    step="10000"
+                                    value={initialInvestment}
+                                    onChange={(e) => handleInitialInvestmentChange(e.target.value)}
+                                    className="form-range"
+                                    style={{
+                                        '--thumb-color': initialInvestmentColor,
+                                        '--track-color': initialInvestmentColor,
+                                    }}
+                                />
+                            </div>
+
+                            <div className="mb-4">
+                                <label className="form-label">Discount Rate (%): {discountRate}</label>
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="30"
+                                    step="1"
+                                    value={discountRate}
+                                    onChange={(e) => handleDiscountRateChange(e.target.value)}
+                                    className="form-range dr-slider"
+                                    style={{
+                                        '--thumb-color': npvColor,
+                                        // The track gradient is set via injected CSS
+                                    }}
+                                />
+                            </div>
+
+                            <div className="d-flex justify-content-between align-items-center mb-2">
+                                <h5>Cash Flows</h5>
+                                <div>
+                                    <button className="btn btn-sm btn-primary me-2" onClick={addCashFlowYear} disabled={cashFlows.length >= maxCashFlows}>
+                                        <i className="bi bi-plus-circle"></i> Add Year
+                                    </button>
+                                </div>
+                            </div>
+
+                            {cashFlows.map((cf, index) => (
+                                <div className="mb-4" key={index}>
+                                    <div className="d-flex justify-content-between align-items-center">
+                                        <label className="form-label mb-0">
+                                            Year {index + 1}: ${cf.toLocaleString()}
+                                        </label>
+                                        {cashFlows.length > minCashFlows && (
+                                            <button className="btn btn-sm btn-danger" onClick={() => removeCashFlowYear(index)}>
+                                                <i className="bi bi-trash"></i>
+                                            </button>
+                                        )}
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="-1000000"
+                                        max="1000000"
+                                        step="10000"
+                                        value={cf}
+                                        onChange={(e) => handleCashFlowChange(index, e.target.value)}
+                                        className="form-range"
+                                        style={{
+                                            '--thumb-color': getCFSensitivityColor(cfSensitivities[index] || 0),
+                                            '--track-color': getCFSensitivityColor(cfSensitivities[index] || 0),
+                                        }}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Right Column for Charts and Results */}
+                        <div className="col-md-6">
+                            {/* NPV vs Discount Rate Chart */}
+                            <canvas id="npvChart"></canvas>
+
+                            {/* Cash Flows and NPV Bar Chart */}
+                            <canvas id="barChart" className="mt-4"></canvas>
+
+                            <div className="mt-4 text-center">
+                                <h3>Net Present Value (NPV)</h3>
+                                <h2 className={`text-${sentiment.color}`}>
+                                    ${npv.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                </h2>
+                                <div className="mt-3">
+                                    ROI: {initialInvestment !== 0 ? currentPercentageGain.toFixed(2) : 'N/A'}%
+                                </div>
+                                <div className={`alert alert-${sentiment.color} mt-3`} role="alert">
+                                    Project Sentiment: {sentiment.text}
+                                </div>
+                                <div className="mt-3">
+                                    <strong>CFO's Decision:</strong> {npv >= 0 ? 'Accept the project' : 'Reject the project'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Render the NPVCalculator component using React
+        const rootElement = document.getElementById('root');
+        ReactDOM.render(<NPVCalculator />, rootElement);
+    </script>
+</body>
+</html>
